@@ -46,6 +46,8 @@ export default function Home() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
   const musicInputRef = useRef<HTMLInputElement | null>(null);
+  const activePhotos =
+    payload?.photos && payload.photos.length > 0 ? payload.photos : photos;
 
   const hearts = useMemo(
     () =>
@@ -107,13 +109,13 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!yesClicked || photos.length === 0) return;
+    if (!yesClicked || activePhotos.length === 0) return;
     const interval = setInterval(() => {
-      setPhotoIndex((prev) => (prev + 1) % photos.length);
+      setPhotoIndex((prev) => (prev + 1) % activePhotos.length);
       setPhotoKey((prev) => prev + 1);
     }, 3500);
     return () => clearInterval(interval);
-  }, [yesClicked, photos.length]);
+  }, [yesClicked, activePhotos.length]);
 
   const handlePhotosChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -255,7 +257,7 @@ export default function Home() {
                   First Screen – Upload & Setup
                 </h2>
                 <p className="mt-2 text-sm text-rose-500">
-                  Files are saved on this server. Share the link to open the
+                  Files are stored on Cloudinary. Share the link to open the
                   surprise anywhere.
                 </p>
               </div>
@@ -447,7 +449,7 @@ export default function Home() {
                     Get ready for a mini journey through your favorite moments.
                   </p>
 
-                  {photos.length > 0 && (
+                  {activePhotos.length > 0 && (
                     <div className="mt-8 text-left">
                       <h3 className="title-font text-2xl font-semibold text-rose-600">
                         Photo Reveal
@@ -462,7 +464,7 @@ export default function Home() {
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={photos[photoIndex]}
+                            src={activePhotos[photoIndex]}
                             alt={`Memory ${photoIndex + 1}`}
                             className="photo-image"
                           />
