@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(payload);
   } catch (error) {
     console.log("Upload error:", { error });
-    return NextResponse.json({ error: "Upload failed." }, { status: 500 });
+    return NextResponse.json({ error }, { status: 500 });
   }
 }
 
