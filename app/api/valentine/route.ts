@@ -1,9 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
-import path from "path";
-import { promises as fs } from "fs";
 import crypto from "crypto";
 import { v2 as cloudinary } from "cloudinary";
-import { kv } from "@vercel/kv";
 
 type StoredPayload = {
   id: string;
@@ -14,15 +11,6 @@ type StoredPayload = {
 };
 
 export const runtime = "nodejs";
-
-const dataRoot = path.join(process.cwd(), "data", "valentine");
-const kvConfigured = Boolean(
-  process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
-);
-
-const ensureDir = async (dirPath: string) => {
-  await fs.mkdir(dirPath, { recursive: true });
-};
 
 const ensureCloudinary = () => {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -70,27 +58,6 @@ const uploadToCloudinary = async (
   });
 };
 
-const savePayload = async (payload: StoredPayload) => {
-  if (kvConfigured) {
-    await kv.set(`valentine:${payload.id}`, payload);
-    return;
-  }
-  await ensureDir(dataRoot);
-  const dataPath = path.join(dataRoot, `${payload.id}.json`);
-  await fs.writeFile(dataPath, JSON.stringify(payload, null, 2), "utf8");
-};
-
-const loadPayload = async (id: string) => {
-  if (kvConfigured) {
-    const payload = await kv.get<StoredPayload>(`valentine:${id}`);
-    if (!payload) throw new Error("Not found.");
-    return payload;
-  }
-  const dataPath = path.join(dataRoot, `${id}.json`);
-  const raw = await fs.readFile(dataPath, "utf8");
-  return JSON.parse(raw) as StoredPayload;
-};
-
 export async function POST(request: NextRequest) {
   try {
     ensureCloudinary();
@@ -127,25 +94,16 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    await savePayload(payload);
-
     return NextResponse.json(payload);
   } catch (error) {
     console.log("Upload error:", { error });
-    return NextResponse.json({ error }, { status: 500 });
+    return NextResponse.json({ error: "Upload failed." }, { status: 500 });
   }
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-  if (!id) {
-    return NextResponse.json({ error: "Missing id." }, { status: 400 });
-  }
-  try {
-    const payload = await loadPayload(id);
-    return NextResponse.json(payload);
-  } catch (error) {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
-  }
+  return NextResponse.json(
+    { error: "GET is not supported without external storage." },
+    { status: 400 }
+  );
 }
