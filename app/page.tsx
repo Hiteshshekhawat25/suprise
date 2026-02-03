@@ -44,6 +44,8 @@ export default function Home() {
   const [confettiOn, setConfettiOn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const photosInputRef = useRef<HTMLInputElement | null>(null);
+  const musicInputRef = useRef<HTMLInputElement | null>(null);
 
   const hearts = useMemo(
     () =>
@@ -101,19 +103,6 @@ export default function Home() {
         .catch(() => {
           setError("This surprise link looks broken. Try again?");
         });
-    } else {
-      const savedId = localStorage.getItem("valentine:last");
-      if (savedId) {
-        fetch(`/api/valentine?id=${savedId}`)
-          .then((res) => (res.ok ? res.json() : null))
-          .then((parsed: Payload | null) => {
-            if (!parsed) return;
-            setPayload(parsed);
-            setMessage(parsed.message);
-            setPhotos(parsed.photos);
-          })
-          .catch(() => undefined);
-      }
     }
   }, []);
 
@@ -177,6 +166,12 @@ export default function Home() {
       setPayload(nextPayload);
       setPhotos(nextPayload.photos);
       localStorage.setItem("valentine:last", String(nextPayload.id));
+      setMessage("");
+      setPhotos([]);
+      setPhotoFiles([]);
+      setMusicFile(null);
+      if (photosInputRef.current) photosInputRef.current.value = "";
+      if (musicInputRef.current) musicInputRef.current.value = "";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -274,6 +269,7 @@ export default function Home() {
                   accept="image/*"
                   multiple
                   onChange={handlePhotosChange}
+                  ref={photosInputRef}
                   className="block w-full rounded-2xl border border-rose-200 bg-white/80 px-4 py-3 text-sm text-rose-500"
                 />
                 {photos.length > 0 && (
@@ -312,6 +308,7 @@ export default function Home() {
                   type="file"
                   accept="audio/*"
                   onChange={handleMusicChange}
+                  ref={musicInputRef}
                   className="block w-full rounded-2xl border border-rose-200 bg-white/80 px-4 py-3 text-sm text-rose-500"
                 />
               </label>

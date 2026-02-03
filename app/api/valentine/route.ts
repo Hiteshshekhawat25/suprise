@@ -2,6 +2,7 @@
 import path from "path";
 import { promises as fs } from "fs";
 import crypto from "crypto";
+import { v2 as cloudinary } from "cloudinary";
 
 type StoredPayload = {
   id: string;
@@ -13,41 +14,60 @@ type StoredPayload = {
 
 export const runtime = "nodejs";
 
-const uploadsRoot = path.join(process.cwd(), "public", "valentine");
 const dataRoot = path.join(process.cwd(), "data", "valentine");
 
 const ensureDir = async (dirPath: string) => {
   await fs.mkdir(dirPath, { recursive: true });
 };
 
-const safeFileName = (name: string) =>
-  name
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9.-]/g, "")
-    .replace(/-+/g, "-")
-    .slice(0, 64) || "file";
+const ensureCloudinary = () => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-const saveFile = async (
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error("Cloudinary is not configured.");
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+  });
+};
+
+const uploadToCloudinary = async (
   id: string,
   file: File,
-  subfolder: string,
-  fallbackName: string
+  subfolder: "photos" | "music"
 ) => {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const ext = path.extname(file.name) || "";
-  const baseName = safeFileName(path.basename(file.name, ext) || fallbackName);
-  const fileName = `${baseName}-${crypto.randomBytes(4).toString("hex")}${ext}`;
-  const folder = path.join(uploadsRoot, id, subfolder);
-  await ensureDir(folder);
-  const filePath = path.join(folder, fileName);
-  await fs.writeFile(filePath, buffer);
-  return `/valentine/${id}/${subfolder}/${fileName}`;
+  const folder = `valentine/${id}/${subfolder}`;
+  const resourceType = subfolder === "music" ? "video" : "image";
+
+  return new Promise<string>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: resourceType,
+        overwrite: false,
+      },
+      (error, result) => {
+        if (error || !result?.secure_url) {
+          reject(error || new Error("Upload failed."));
+          return;
+        }
+        resolve(result.secure_url);
+      }
+    );
+    stream.end(buffer);
+  });
 };
 
 export async function POST(request: NextRequest) {
   try {
+    ensureCloudinary();
     const formData = await request.formData();
     const message = String(formData.get("message") || "").trim();
     const photoFiles = formData.getAll("photos") as File[];
@@ -61,19 +81,18 @@ export async function POST(request: NextRequest) {
     }
 
     const id = crypto.randomBytes(10).toString("hex");
-    await ensureDir(path.join(uploadsRoot, id));
     await ensureDir(dataRoot);
 
     const photos: string[] = [];
     for (const file of photoFiles) {
       if (!file || typeof file.arrayBuffer !== "function") continue;
-      const url = await saveFile(id, file, "photos", "photo");
+      const url = await uploadToCloudinary(id, file, "photos");
       photos.push(url);
     }
 
     let music: string | null = null;
     if (musicFile && typeof musicFile.arrayBuffer === "function") {
-      music = await saveFile(id, musicFile, "music", "song");
+      music = await uploadToCloudinary(id, musicFile, "music");
     }
 
     const payload: StoredPayload = {
@@ -89,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(payload);
   } catch (error) {
-    console.log("Upload error:", {error});
+    console.log("Upload error:", { error });
     return NextResponse.json({ error: "Upload failed." }, { status: 500 });
   }
 }
